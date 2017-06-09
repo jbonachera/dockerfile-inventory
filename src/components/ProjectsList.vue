@@ -5,7 +5,7 @@
     </md-layout>
     <md-layout md-align="center">
       <md-table-card>
-        <md-table>
+        <md-table @sort="onSort">
           <md-table-header>
             <md-table-row>
               <md-table-head md-sort-by="name">Name</md-table-head>
@@ -20,7 +20,7 @@
           <md-table-body>
             <md-table-row v-for="(project, index) in displayedProjects"
                           :key="index">
-              <md-table-cell>{{ project.name }} </md-table-cell>
+              <md-table-cell><a :href="`https://github.com/${user}/docker-${project.name}/`">{{ project.name }}</a></md-table-cell>
               <md-table-cell>{{ project.baseImage }} </md-table-cell>
               <md-table-cell>{{ project.hubName }} </md-table-cell>
               <md-table-cell>{{ project.stars }} </md-table-cell>
@@ -51,8 +51,21 @@
   export default {
     name: 'projectsList',
     methods: {
+      onSort (e) {
+        this.projects.sort((a, b) => {
+          if (e.type === 'asc') {
+            return b[e.name] - a[e.name]
+          } else {
+            return a[e.name] - b[e.name]
+          }
+        })
+        this.refreshDisplay()
+      },
+      refreshDisplay () {
+        this.displayedProjects = this.projects.slice((this.currentPage - 1) * 5, (this.currentPage - 1) * 5 + 5)
+      },
       onPagination (event) {
-        this.displayedProjects = this.projects.slice(event.page * 5, event.page * 5 + 5)
+        this.refreshDisplay()
       },
       fetchPage (page) {
         if (!page) {
@@ -61,15 +74,17 @@
         }
         return axios.get(`https://api.github.com/users/${this.user}/repos?sort=pushed&per_page=${this.itemPerPage}&page=${page}`)
           .then(resp => {
-            const links = resp.headers.link.split(',')
-            links.forEach(item => {
-              const match = item.match(/.*per_page=[0-9]+&page=([0-9]+)>; rel="next"/)
-              if (match) {
-                this.$nextTick(() => {
-                  this.fetchPage(match[1])
-                })
-              }
-            })
+            if (resp.headers.link) {
+              const links = resp.headers.link.split(',')
+              links.forEach(item => {
+                const match = item.match(/.*per_page=[0-9]+&page=([0-9]+)>; rel="next"/)
+                if (match) {
+                  this.$nextTick(() => {
+                    this.fetchPage(match[1])
+                  })
+                }
+              })
+            }
             return resp.data.filter(repo => {
               return repo.name.startsWith('docker-')
             })
@@ -81,12 +96,13 @@
                 name: name,
                 baseImage: 'bla',
                 hubName: `${this.user}/${name}`,
-                stars: repo.stargazers_count
+                stars: parseInt(repo.stargazers_count)
               })
             })
+            this.refreshDisplay()
           })
           .catch(err => {
-            if (err.response.status === 403) {
+            if (err.response && err.response.status === 403) {
               this.rrReset = moment.unix(parseInt(err.response.headers['x-ratelimit-reset'])).fromNow()
               this.$refs['snackbar'].open()
             }
@@ -106,7 +122,6 @@
     },
     mounted () {
       this.$nextTick(this.fetchPage)
-      this.onPagination({page: 1})
     }
   }
 </script>
