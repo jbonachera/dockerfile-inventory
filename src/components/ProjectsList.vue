@@ -1,7 +1,7 @@
 <template>
   <md-layout md-column>
     <md-layout md-align="center">
-      <h2 class="md-title">Docker repository list for {{ user }}</h2>
+      <h2 class="md-title">Docker repository list for {{ user }} (matching <i>/{{ regexpString }}/</i>) <md-icon @click.native="openDialog('edit')">mode_edit</md-icon></h2>
     </md-layout>
     <md-layout>
       <md-layout md-align="center">
@@ -53,6 +53,26 @@
                  @click.native="$refs.snackbar.close()">Close
       </md-button>
     </md-snackbar>
+    <md-dialog ref="edit" @close="fetchPage">
+      <md-dialog-title>Source config</md-dialog-title>
+
+      <md-dialog-content>
+        <md-input-container>
+          <label>Github username value</label>
+          <md-input v-model="user"></md-input>
+        </md-input-container>
+        <md-input-container>
+          <label>Docker repositories regexp</label>
+          <md-input v-model="regexpString"></md-input>
+        </md-input-container>
+
+      </md-dialog-content>
+
+      <md-dialog-actions>
+        <md-button class="md-primary" @click.native="closeDialog('edit')">Close</md-button>
+      </md-dialog-actions>
+    </md-dialog>
+
   </md-layout>
 </template>
 <script>
@@ -72,6 +92,12 @@
             })
             this.refreshDisplay()
           })
+      },
+      openDialog (ref) {
+        this.$refs[ref].open()
+      },
+      closeDialog (ref) {
+        this.$refs[ref].close()
       },
       onSort (e) {
         this.projects.sort((a, b) => {
@@ -120,7 +146,7 @@
               })
             }
             return resp.data.filter(repo => {
-              return repo.name.match(/^docker-/)
+              return repo.name.match(this.regexp)
             })
           })
           .then(repoList => {
@@ -128,7 +154,7 @@
               const name = repo.name.replace('docker-', '')
               const project = {
                 name: name,
-                baseImage: 'bla',
+                baseImage: 'Dockerfile not found..',
                 hubName: `${this.user}/${name}`,
                 stars: parseInt(repo.stargazers_count)
               }
@@ -161,6 +187,11 @@
         console.log(this.graph.rows)
       }
     },
+    computed: {
+      regexp () {
+        return new RegExp(this.regexpString)
+      }
+    },
     data () {
       return {
         user: 'jbonachera',
@@ -169,6 +200,7 @@
         pageSize: 10,
         projects: [],
         displayedProjects: [],
+        regexpString: '^docker-',
         rrReset: 0,
         graph: {
           columns: [
