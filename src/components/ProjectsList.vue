@@ -184,7 +184,6 @@
       },
       refreshGaph () {
         this.refreshRows()
-        console.log(this.graph.rows)
       }
     },
     computed: {
