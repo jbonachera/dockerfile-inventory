@@ -4,11 +4,13 @@ import Vue from 'vue'
 import App from './App'
 import router from './router'
 import VueMaterial from 'vue-material'
+import VueCharts from 'vue-charts'
 
 import 'vue-material/dist/vue-material.css'
 
 Vue.config.productionTip = false
 Vue.use(VueMaterial)
+Vue.use(VueCharts)
 
 /* eslint-disable no-new */
 new Vue({

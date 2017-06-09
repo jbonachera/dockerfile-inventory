@@ -3,41 +3,49 @@
     <md-layout md-align="center">
       <h2 class="md-title">Docker repository list for {{ user }}</h2>
     </md-layout>
-    <md-layout md-align="center">
-      <md-table-card>
-        <md-table @sort="onSort">
-          <md-table-header>
-            <md-table-row>
-              <md-table-head md-sort-by="name">Name</md-table-head>
-              <md-table-head md-sort-by="baseImage">Base-Image</md-table-head>
-              <md-table-head md-sort-by="hubName">Docker hub repository name
-              </md-table-head>
-              <md-table-head md-sort-by="stars">
-                <md-icon>star</md-icon>
-              </md-table-head>
-            </md-table-row>
-          </md-table-header>
-          <md-table-body>
-            <md-table-row v-for="(project, index) in displayedProjects"
-                          :key="index">
-              <md-table-cell><a
-                :href="`https://github.com/${user}/docker-${project.name}/`">{{ project.name
-                }}</a></md-table-cell>
-              <md-table-cell>{{ project.baseImage }} </md-table-cell>
-              <md-table-cell>{{ project.hubName }} </md-table-cell>
-              <md-table-cell>{{ project.stars }} </md-table-cell>
-            </md-table-row>
-          </md-table-body>
-        </md-table>
-        <md-table-pagination
-          v-bind:md-size="pageSize"
-          v-bind:md-total="projects.length"
-          v-bind:md-page="currentPage"
-          md-label="Items"
-          md-separator="of"
-          :md-page-options="[5, 10, 20]"
-          @pagination="onPagination"></md-table-pagination>
-      </md-table-card>
+    <md-layout>
+      <md-layout md-align="center">
+        <md-table-card>
+          <md-table @sort="onSort">
+            <md-table-header>
+              <md-table-row>
+                <md-table-head md-sort-by="name">Name</md-table-head>
+                <md-table-head md-sort-by="baseImage">Base-Image</md-table-head>
+                <md-table-head md-sort-by="hubName">Docker hub repository name
+                </md-table-head>
+                <md-table-head md-sort-by="stars">
+                  Github stars
+                </md-table-head>
+              </md-table-row>
+            </md-table-header>
+            <md-table-body>
+              <md-table-row v-for="(project, index) in displayedProjects"
+                            :key="index">
+                <md-table-cell><a
+                  :href="`https://github.com/${user}/docker-${project.name}/`">{{ project.name
+                  }}</a></md-table-cell>
+                <md-table-cell>{{ project.baseImage }} </md-table-cell>
+                <md-table-cell>{{ project.hubName }} </md-table-cell>
+                <md-table-cell>{{ project.stars }} </md-table-cell>
+              </md-table-row>
+            </md-table-body>
+          </md-table>
+          <md-table-pagination
+            v-bind:md-size="pageSize"
+            md-total="Many"
+            v-bind:md-page="currentPage"
+            md-label="Items"
+            md-separator="of"
+            :md-page-options="[10, 20]"
+            @pagination="onPagination"></md-table-pagination>
+        </md-table-card>
+      </md-layout>
+      <md-layout md-align="center">
+        <h2 class="md-title">Statistics</h2>
+        <vue-chart chart-type="PieChart" :columns="graph.columns"
+                   :rows="graph.rows"
+                   :options="graph.options"></vue-chart>
+      </md-layout>
     </md-layout>
     <md-snackbar md-position="bottom center" ref="snackbar" md-duration="30000">
       <span>Request rate-limited. Please wait and retry in {{ rrReset }}.</span>
@@ -73,10 +81,20 @@
             return a[e.name] - b[e.name]
           }
         })
+        this.currentPage = 1
         this.refreshDisplay()
       },
       refreshDisplay () {
-        this.displayedProjects = this.projects.slice((this.currentPage - 1) * this.pageSize, (this.currentPage - 1) * this.pageSize + this.pageSize)
+        let start = (this.currentPage - 1) * this.pageSize
+        let end = (this.currentPage - 1) * this.pageSize + this.pageSize
+        if (end > this.projects.length) {
+          end = this.projects.length
+        }
+        if (start > this.projects.length) {
+          start = this.projects.length
+        }
+        this.displayedProjects = this.projects.slice(start, end)
+        this.refreshGaph()
       },
       onPagination (event) {
         this.pageSize = event.size
@@ -102,7 +120,7 @@
               })
             }
             return resp.data.filter(repo => {
-              return repo.name.startsWith('docker-')
+              return repo.name.match(/^docker-/)
             })
           })
           .then(repoList => {
@@ -125,6 +143,22 @@
               this.$refs['snackbar'].open()
             }
           })
+      },
+      refreshRows () {
+        const baseImages = this.projects.reduce((acc, val) => {
+          if (!acc[val.baseImage]) {
+            acc[val.baseImage] = 0
+          }
+          acc[val.baseImage] += 1
+          return acc
+        }, {})
+        this.graph.rows = Object.keys(baseImages || {}).map(name => {
+          return [name, baseImages[name]]
+        })
+      },
+      refreshGaph () {
+        this.refreshRows()
+        console.log(this.graph.rows)
       }
     },
     data () {
@@ -132,10 +166,29 @@
         user: 'jbonachera',
         itemPerPage: 200,
         currentPage: 1,
-        pageSize: 5,
+        pageSize: 10,
         projects: [],
         displayedProjects: [],
-        rrReset: 0
+        rrReset: 0,
+        graph: {
+          columns: [
+            {
+              'type': 'string',
+              'label': 'Name'
+            },
+            {
+              'type': 'number',
+              'label': 'Count'
+            }
+          ],
+          rows: [],
+          options: {
+            title: 'Base images repartition',
+            width: 900,
+            height: 500,
+            pieHole: 0.4
+          }
+        }
       }
     },
     mounted () {
