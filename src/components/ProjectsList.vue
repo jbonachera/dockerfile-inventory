@@ -18,7 +18,8 @@
             </md-table-row>
           </md-table-header>
           <md-table-body>
-            <md-table-row v-for="(project, index) in projects" :key="index">
+            <md-table-row v-for="(project, index) in displayedProjects"
+                          :key="index">
               <md-table-cell>{{ project.name }} </md-table-cell>
               <md-table-cell>{{ project.baseImage }} </md-table-cell>
               <md-table-cell>{{ project.hubName }} </md-table-cell>
@@ -27,17 +28,17 @@
           </md-table-body>
         </md-table>
         <md-table-pagination
-          v-bind:md-size="itemPerPage"
-          :md-total="lastPage * itemPerPage"
+          md-size="5"
+          :md-total="projects.length"
           v-bind:md-page="currentPage"
           md-label="Page"
           md-separator="of"
-          :md-page-options="[5, 10, 15]"
-          @pagination="refreshProjects"></md-table-pagination>
+          :md-page-options="[5]"
+          @pagination="onPagination"></md-table-pagination>
       </md-table-card>
     </md-layout>
     <md-snackbar md-position="bottom center" ref="snackbar" md-duration="30000">
-      <span>Request rate-limited. Please wait and retry later.</span>
+      <span>Request rate-limited. Please wait and retry in {{ rrReset }}.</span>
       <md-button class="md-accent" md-theme="light-blue"
                  @click.native="$refs.snackbar.close()">Close
       </md-button>
@@ -46,29 +47,27 @@
 </template>
 <script>
   import axios from 'axios'
+  import moment from 'moment'
   export default {
     name: 'projectsList',
     methods: {
-      refreshProjects (e) {
-        if (e) {
-          if (!e.page) {
-            this.currentPage = 1
-          } else {
-            this.currentPage = e.page
-          }
-          if (!e.size) {
-            this.itemPerPage = 5
-          } else {
-            this.itemPerPage = e.size
-          }
+      onPagination (event) {
+        this.displayedProjects = this.projects.slice(event.page * 5, event.page * 5 + 5)
+      },
+      fetchPage (page) {
+        if (!page) {
+          page = 1
+          this.projects = []
         }
-        return axios.get(`https://api.github.com/users/${this.user}/repos?sort=pushed&per_page=${this.itemPerPage}&page=${this.currentPage}`)
+        return axios.get(`https://api.github.com/users/${this.user}/repos?sort=pushed&per_page=${this.itemPerPage}&page=${page}`)
           .then(resp => {
             const links = resp.headers.link.split(',')
             links.forEach(item => {
-              const match = item.match(/.*per_page=[0-9]+&page=([0-9]+)>; rel="last"/)
+              const match = item.match(/.*per_page=[0-9]+&page=([0-9]+)>; rel="next"/)
               if (match) {
-                this.lastPage = match[1]
+                this.$nextTick(() => {
+                  this.fetchPage(match[1])
+                })
               }
             })
             return resp.data.filter(repo => {
@@ -76,18 +75,20 @@
             })
           })
           .then(repoList => {
-            this.projects = repoList.map(repo => {
+            repoList.forEach(repo => {
               const name = repo.name.replace('docker-', '')
-              return {
+              this.projects.push({
                 name: name,
                 baseImage: 'bla',
                 hubName: `${this.user}/${name}`,
                 stars: repo.stargazers_count
-              }
+              })
             })
           })
           .catch(err => {
-            if (err.message === 'Request failed with status code 403') {
+            console.log(err.response)
+            if (err.response.status === 403) {
+              this.rrReset = moment.unix(parseInt(err.response.headers['x-ratelimit-reset'])).fromNow()
               this.$refs['snackbar'].open()
             }
           })
@@ -96,14 +97,17 @@
     data () {
       return {
         user: 'jbonachera',
-        itemPerPage: 10,
+        itemPerPage: 20,
         currentPage: 1,
         lastPage: 0,
-        projects: []
+        projects: [],
+        displayedProjects: [],
+        rrReset: 0
       }
     },
     mounted () {
-      this.$nextTick(this.refreshProjects)
+      this.$nextTick(this.fetchPage)
+      this.onPagination({page: 1})
     }
   }
 </script>
