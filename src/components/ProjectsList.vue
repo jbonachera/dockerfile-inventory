@@ -97,7 +97,7 @@
     data () {
       return {
         user: 'jbonachera',
-        itemPerPage: 20,
+        itemPerPage: 200,
         currentPage: 1,
         lastPage: 0,
         projects: [],
