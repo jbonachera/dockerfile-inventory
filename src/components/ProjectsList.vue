@@ -20,7 +20,9 @@
           <md-table-body>
             <md-table-row v-for="(project, index) in displayedProjects"
                           :key="index">
-              <md-table-cell><a :href="`https://github.com/${user}/docker-${project.name}/`">{{ project.name }}</a></md-table-cell>
+              <md-table-cell><a
+                :href="`https://github.com/${user}/docker-${project.name}/`">{{ project.name
+                }}</a></md-table-cell>
               <md-table-cell>{{ project.baseImage }} </md-table-cell>
               <md-table-cell>{{ project.hubName }} </md-table-cell>
               <md-table-cell>{{ project.stars }} </md-table-cell>
@@ -28,12 +30,12 @@
           </md-table-body>
         </md-table>
         <md-table-pagination
-          md-size="5"
-          :md-total="projects.length"
+          v-bind:md-size="pageSize"
+          v-bind:md-total="projects.length"
           v-bind:md-page="currentPage"
-          md-label="Page"
+          md-label="Items"
           md-separator="of"
-          :md-page-options="[5]"
+          :md-page-options="[5, 10, 20]"
           @pagination="onPagination"></md-table-pagination>
       </md-table-card>
     </md-layout>
@@ -51,6 +53,18 @@
   export default {
     name: 'projectsList',
     methods: {
+      fetchDockerInfo (item) {
+        return axios.get(`https://raw.githubusercontent.com/${this.user}/docker-${item.name}/master/Dockerfile`)
+          .then(resp => {
+            const dockerfile = resp.data
+            dockerfile.split('\n').forEach(line => {
+              if (line.startsWith('FROM')) {
+                item.baseImage = line.split(' ')[1]
+              }
+            })
+            this.refreshDisplay()
+          })
+      },
       onSort (e) {
         this.projects.sort((a, b) => {
           if (e.type === 'asc') {
@@ -62,9 +76,11 @@
         this.refreshDisplay()
       },
       refreshDisplay () {
-        this.displayedProjects = this.projects.slice((this.currentPage - 1) * 5, (this.currentPage - 1) * 5 + 5)
+        this.displayedProjects = this.projects.slice((this.currentPage - 1) * this.pageSize, (this.currentPage - 1) * this.pageSize + this.pageSize)
       },
       onPagination (event) {
+        this.pageSize = event.size
+        this.currentPage = event.page
         this.refreshDisplay()
       },
       fetchPage (page) {
@@ -92,12 +108,14 @@
           .then(repoList => {
             repoList.forEach(repo => {
               const name = repo.name.replace('docker-', '')
-              this.projects.push({
+              const project = {
                 name: name,
                 baseImage: 'bla',
                 hubName: `${this.user}/${name}`,
                 stars: parseInt(repo.stargazers_count)
-              })
+              }
+              this.projects.push(project)
+              this.fetchDockerInfo(project)
             })
             this.refreshDisplay()
           })
@@ -114,7 +132,7 @@
         user: 'jbonachera',
         itemPerPage: 200,
         currentPage: 1,
-        lastPage: 0,
+        pageSize: 5,
         projects: [],
         displayedProjects: [],
         rrReset: 0
