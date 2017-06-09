@@ -86,7 +86,6 @@
             })
           })
           .catch(err => {
-            console.log(err.response)
             if (err.response.status === 403) {
               this.rrReset = moment.unix(parseInt(err.response.headers['x-ratelimit-reset'])).fromNow()
               this.$refs['snackbar'].open()
