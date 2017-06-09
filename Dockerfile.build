@@ -1,0 +1,4 @@
+FROM alpine
+RUN apk -U add nodejs
+WORKDIR /usr/local/src
+CMD npm install && npm run build
